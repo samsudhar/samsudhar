@@ -1,92 +1,64 @@
-import org.tensorflow.lite.Interpreter;
-import java.io.File;
-import java.nio.MappedByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.List;
+#include <OneWire.h>           // Library for temperature sensor
+#include <DallasTemperature.h> // Library for DS18B20
+#include <LiquidCrystal.h>     // Library for LCD display
 
-public class PestDetectionSystem {
-    private Interpreter tflite;
-    private static final String MODEL_PATH = "path/to/model.tflite"; // TensorFlow Lite model path
-    private static final String CAMERA_PATH = "/path/to/camera/images/"; // Rover's camera image folder
+// Pin Definitions
+#define ONE_WIRE_BUS 2       // DS18B20 data pin
+#define PH_SENSOR_PIN A0     // pH sensor connected to Analog pin A0
+#define TEMP_SENSOR_PIN 2    // Digital pin for temperature sensor
+#define LCD_RS 7
+#define LCD_EN 8
+#define LCD_D4 9
+#define LCD_D5 10
+#define LCD_D6 11
+#define LCD_D7 12
 
-    public PestDetectionSystem() {
-        try {
-            // Load the TensorFlow Lite model
-            MappedByteBuffer model = loadModel(MODEL_PATH);
-            tflite = new Interpreter(model);
-        } catch (Exception e) {
-            System.err.println("Error loading model: " + e.getMessage());
-        }
-    }
+// LCD Initialization
+LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 
-    // Method to load the TensorFlow Lite model
-    private MappedByteBuffer loadModel(String modelPath) throws Exception {
-        File file = new File(modelPath);
-        return Files.newByteChannel(Paths.get(file.getPath())).map(
-            FileChannel.MapMode.READ_ONLY,
-            0,
-            file.length()
-        );
-    }
+// Temperature Sensor Setup
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature tempSensor(&oneWire);
 
-    // Process image through the AI model
-    public String detectPest(String imagePath) {
-        // Load image (placeholder for actual image preprocessing)
-        float[][] inputImage = preprocessImage(imagePath);
+// Variables
+float temperatureC = 0;
+float pHValue = 0;
+int analogValue = 0;
 
-        // Prepare output array for predictions
-        float[][] output = new float[1][NUM_CLASSES]; // Adjust NUM_CLASSES based on your model
-
-        // Run inference
-        tflite.run(inputImage, output);
-
-        // Analyze output to determine pest type
-        return interpretResults(output);
-    }
-
-    // Placeholder for image preprocessing (actual code will depend on your library)
-    private float[][] preprocessImage(String imagePath) {
-        // Load and normalize image data
-        return new float[1][224 * 224 * 3]; // Placeholder for processed image
-    }
-
-    // Interpret model output to classify pests
-    private String interpretResults(float[][] output) {
-        int classIndex = 0;
-        float maxScore = 0;
-
-        // Find the class with the highest probability
-        for (int i = 0; i < output[0].length; i++) {
-            if (output[0][i] > maxScore) {
-                maxScore = output[0][i];
-                classIndex = i;
-            }
-        }
-
-        // Return pest type based on class index
-        String[] pestClasses = {"No Pest", "Mango Mealy Bug", "Aphid", "Whitefly"};
-        return pestClasses[classIndex];
-    }
-
-    // Main function for testing
-    public static void main(String[] args) {
-        PestDetectionSystem pestSystem = new PestDetectionSystem();
-
-        // Test with images captured by the rover
-        File folder = new File(CAMERA_PATH);
-        File[] images = folder.listFiles();
-
-        if (images != null) {
-            for (File image : images) {
-                String result = pestSystem.detectPest(image.getPath());
-                System.out.println("Image: " + image.getName() + " - Detection: " + result);
-            }
-        } else {
-            System.out.println("No images found in camera path.");
-        }
-    }
+void setup() {
+  Serial.begin(9600);         // Start Serial communication
+  lcd.begin(16, 2);           // Initialize 16x2 LCD display
+  tempSensor.begin();         // Start DS18B20 sensor
+  lcd.print("Milk Quality");
+  delay(2000);
+  lcd.clear();
 }
 
+void loop() {
+  // Get Temperature
+  tempSensor.requestTemperatures();
+  temperatureC = tempSensor.getTempCByIndex(0);
   
+  // Read pH Sensor
+  analogValue = analogRead(PH_SENSOR_PIN);
+  pHValue = analogValue * (14.0 / 1023.0); // Scale to pH range (0-14)
+
+  // Display on LCD
+  lcd.setCursor(0, 0);
+  lcd.print("Temp: ");
+  lcd.print(temperatureC);
+  lcd.print(" C");
+  
+  lcd.setCursor(0, 1);
+  lcd.print("pH: ");
+  lcd.print(pHValue);
+
+  // Print to Serial Monitor
+  Serial.print("Temperature (C): ");
+  Serial.println(temperatureC);
+  Serial.print("pH Value: ");
+  Serial.println(pHValue);
+
+  delay(1000); // 1-second delay
+}
 
